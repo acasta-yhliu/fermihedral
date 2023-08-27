@@ -23,17 +23,6 @@ class powerset(Generic[T]):
         return 2 ** len(self.iterable)
 
 
-def block_model(s: Solver, m: ModelRef):
-    s.add(Or([f() != m[f] for f in m.decls() if f.arity() == 0]))
-
-
-def all_smt(s: Solver):
-    while sat == s.check():
-        model = s.model()
-        yield model
-        block_model(s, model)
-
-
 class PauliOp:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -116,9 +105,13 @@ class FermionModel:
         self.solver.add(reduce(add, weights) <= self.initial_weight)
 
     def solve(self):
-        for model in all_smt(self.solver):
-            majorana_str = [op.format(model) for op in self.majoranas]
-            yield majorana_str
+        if self.solver.check() == sat:
+            model = self.solver.model()
+            self.solver.add(Or([f() != model[f]
+                            for f in model.decls() if f.arity() == 0]))
+            return [op.format(model) for op in self.majoranas]
+        else:
+            return None
 
 
 n_qubits = int(input("Please provide with N quibts: "))
@@ -128,12 +121,7 @@ model = FermionModel(n_qubits, initial_weight)
 
 model.apply()
 
-solutions = list(model.solve())
-
-if len(solutions) != 0:
-    print(f"Totally {len(solutions)} solutions. First 10 solutions are:")
-    for i in range(10):
-        if i < len(solutions):
-            print(solutions[i])
+if (solution := model.solve()) != None:
+    print(solution)
 else:
-    print("Not found.")
+    print("Not found")
