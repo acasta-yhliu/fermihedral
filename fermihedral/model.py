@@ -62,3 +62,10 @@ class MajoranaModel:
             return [op.decode(model) for op in self.majoranas]
         else:
             return None
+
+
+class FermionModel:
+    def __init__(self, nfermions: int, nqubits: int, max_weight: int) -> None:
+        assert nqubits >= nfermions
+
+        self.majorana_model = MajoranaModel(nqubits, max_weight)
