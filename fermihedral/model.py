@@ -54,6 +54,13 @@ class MajoranaModel:
                     exists_xyz(left), exists_xyz(right)))))
         self.solver.add(reduce(add, weights) <= self.max_weight)
 
+        for m1, m2 in progess(zip(self.majoranas[::2], self.majoranas[1::2]), "vacuum state preservation"):
+            def pairing(op_pair: tuple[EncPauliOp, EncPauliOp]):
+                op1, op2 = op_pair
+                return Or(And(op1.bit0, Not(op1.bit1), Not(op2.bit0), op2.bit1), And(op1.bit0, op1.bit1, Not(op2.bit0), Not(op2.bit1)))
+
+            self.solver.add(reduce(Or, map(pairing, zip(m1, m2))))
+
     def solve(self):
         if self.solver.check() == sat:
             model = self.solver.model()

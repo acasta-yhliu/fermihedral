@@ -1,3 +1,4 @@
+from typing import Iterable
 from z3 import Bool, ModelRef
 
 
@@ -28,7 +29,7 @@ class EncPauliOp:
         return EncPauliOp._DEC_STRATEGY[gate]
 
 
-class EncPauliStr:
+class EncPauliStr(Iterable[EncPauliOp]):
     def __init__(self, length: int):
         self.ops = [EncPauliOp() for _ in range(length)]
 
