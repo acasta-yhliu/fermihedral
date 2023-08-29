@@ -1,6 +1,11 @@
-from .model import MajoranaModel
+import z3
+
+from .solver import DecentSolver
 
 if __name__ == '__main__':
-    print("solving with example: 4 qubits, 32 max weights")
-    majorana_model = MajoranaModel(4, 32)
-    print(majorana_model.solve())
+    # enable the parallel support, just try
+    z3.set_param("parallel.enable", "true")
+    z3.set_param("timeout", 12000)
+    for i in range(1, 10):
+        solver = DecentSolver(i)
+        print(i, "=>", solver.solve())

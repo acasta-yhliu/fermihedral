@@ -27,6 +27,8 @@ class MajoranaModel:
             def progess(iter: Iterable[T], _desc):
                 return iter
 
+        self._progess = progess
+
         for comb in progess(PowerSet(self.majoranas), "algebraic independent"):
             if len(comb) > 1:
                 zipped = map(lambda x: reduce(Xor, x), zip(
@@ -40,19 +42,7 @@ class MajoranaModel:
                     b.bit1)), And(b.bit0, Not(a.bit0), a.bit1), And(b.bit1, a.bit0, Not(a.bit1))))
             self.solver.add(reduce(Xor, xors))
 
-        def p_xyz(p: EncPauliOp):
-            return Or(p.bit0, p.bit1)
-
-        def exists_xyz(x):
-            return reduce(Or, map(p_xyz, x)) if len(x) != 0 else False
-
-        weights = []
-        for string in progess(self.majoranas, "weight"):
-            for i in range(len(string.ops)):
-                left, op, right = string.ops[:i], string.ops[i], string.ops[i:]
-                weights.append(IntSort().cast(Or(p_xyz(op), And(
-                    exists_xyz(left), exists_xyz(right)))))
-        self.solver.add(reduce(add, weights) <= self.max_weight)
+        self.restrict_weight(max_weight)
 
         for m1, m2 in progess(zip(self.majoranas[::2], self.majoranas[1::2]), "vacuum state preservation"):
             def pairing(op_pair: tuple[EncPauliOp, EncPauliOp]):
@@ -61,14 +51,23 @@ class MajoranaModel:
 
             self.solver.add(reduce(Or, map(pairing, zip(m1, m2))))
 
+    def restrict_weight(self, new_weight: int):
+        assert new_weight <= self.max_weight
+
+        weights = []
+        for string in self._progess(self.majoranas, "weight"):
+            for op in string:
+                weights.append(IntSort().cast(Or(op.bit0, op.bit1)))
+        self.solver.add(reduce(add, weights) <= new_weight)
+
     def solve(self):
-        if self.solver.check() == sat:
-            model = self.solver.model()
-            self.solver.add(Or([f() != model[f]
-                            for f in model.decls() if f.arity() == 0]))
-            return [op.decode(model) for op in self.majoranas]
-        else:
-            return None
+        model = self.solver.model()
+        self.solver.add(Or([f() != model[f]
+                        for f in model.decls() if f.arity() == 0]))
+        return [op.decode(model) for op in self.majoranas]
+
+    def check(self):
+        return self.solver.check() == sat
 
 
 class FermionModel:

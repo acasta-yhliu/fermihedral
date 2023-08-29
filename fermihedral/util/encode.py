@@ -4,7 +4,7 @@ from z3 import Bool, ModelRef
 
 class EncPauliOp:
     _DEC_STRATEGY = {
-        (False, False): "I",
+        (False, False): "_",
         (False, True): "X",
         (True, False): "Y",
         (True, True): "Z"
