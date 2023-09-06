@@ -1,3 +1,4 @@
 #!/bin/bash
 
-python3 -B -m fermihedral
+./solve.py
+kissat model.cnf
