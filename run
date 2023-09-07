@@ -1,4 +1,0 @@
-#!/bin/bash
-
-./solve.py
-kissat model.cnf

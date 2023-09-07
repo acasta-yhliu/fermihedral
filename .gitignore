@@ -162,3 +162,11 @@ cython_debug/
 
 # Mac OS X
 .DS_Store
+
+# Model
+model
+bksolve
+result
+
+# Plot
+*.png
