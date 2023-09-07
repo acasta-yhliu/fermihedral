@@ -164,9 +164,8 @@ cython_debug/
 .DS_Store
 
 # Model
-model
-bksolve
-result
+*.cnf
+*.sol
 
 # Plot
 *.png

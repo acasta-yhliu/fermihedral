@@ -1,9 +1,15 @@
+from os import system
+from sys import argv
+
 from fermihedral import MajoranaModel, get_bk_weight, get_pauli_weight
+from fermihedral.satutil import Kissat
 
-model = MajoranaModel(8)
+n_qubits = int(argv[1])
 
-model.restrict_weight(get_bk_weight(8))
-solution = model.solve("dimacs")
+kissat = Kissat()
+model = MajoranaModel(n_qubits)
 
-with open("bksolve", "w+") as f:
-    f.write(solution)
+model.restrict_weight(get_bk_weight(n_qubits))
+solution_dimacs = model.solve("dimacs", external_solver=kissat)
+solution_z3 = model.solve("z3")
+print(get_pauli_weight(solution_dimacs), get_pauli_weight(solution_z3))

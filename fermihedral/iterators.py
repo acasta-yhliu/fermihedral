@@ -1,6 +1,6 @@
-from typing import Generic, Iterable, TypeVar
 from itertools import combinations
 from math import comb, pow
+from typing import Generic, Iterable, TypeVar
 
 T = TypeVar("T")
 

@@ -1,12 +1,14 @@
 MODEL_FILE=model
 RESULT_FILE=result
 
-benchmark:
-	./driver.py 12 120 ${MODEL_FILE} ${RESULT_FILE}
+.PHONY: desolve
+desolve:
+	python3 desolve.py 12
 
+.PHONY: bkplot
 bkplot:
 	python3 -B bkplot.py
 
+.PHONY: bksolve
 bksolve:
-	python3 -B bksolve.py
-	kissat -q bksolve
+	python3 -B bksolve.py 10

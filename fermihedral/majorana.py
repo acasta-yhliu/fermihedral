@@ -1,12 +1,14 @@
-from typing import Literal
-from z3 import Goal, And, Or, Xor, Not, BoolRef, BitVecVal
-from z3 import If, Then, Solver, sat
 from functools import reduce
 from operator import add
-from openfermion import bravyi_kitaev, FermionOperator, QubitOperator
+from typing import Literal
 
+from openfermion import FermionOperator, QubitOperator, bravyi_kitaev
+from z3 import (And, BitVecVal, BoolRef, Goal, If, Not, Or, Solver, Then, Xor,
+                sat)
+
+from .iterators import Combination, PowerSet
 from .pauli import Pauli, PauliOp
-from .iterators import PowerSet, Combination
+from .satutil import SATModel, SATSolver
 
 
 def get_pauli_weight(model: list[str]):
@@ -28,7 +30,7 @@ def get_bk_weight(n_modes: int):
 
 
 class MajoranaModel:
-    def __init__(self, nqubits: int, max_independent_length: int = 5) -> None:
+    def __init__(self, nqubits: int, max_independent_length: int = 4) -> None:
         self.nqubits = nqubits
         self.majoranas = [Pauli(nqubits) for _ in range(2 * nqubits)]
         self.goal = Goal()
@@ -66,7 +68,7 @@ class MajoranaModel:
                 weight_constraints.append(to_bitvec(Or(op.bit0, op.bit1)))
         self.goal.add(reduce(add, weight_constraints) < weight)
 
-    def solve(self, method: Literal["z3", "dimacs"]):
+    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: SATSolver | None = None):
         solver = Solver()
         solver.add(Then('simplify', 'bit-blast', 'tseitin-cnf')(self.goal)[0])
 
@@ -75,13 +77,27 @@ class MajoranaModel:
 
             if solver.check() == sat:
                 model = solver.model()
-                return [op.decode(model) for op in self.majoranas]
+                return [op.decode_z3(model) for op in self.majoranas]
             else:
                 return None
         elif method == "dimacs":
             print("> solving via invoking external sat solver")
 
-            return solver.dimacs(False)
+            LOCAL_GOAL_PATH = "./__goal.cnf"
+            LOCAL_MODEL_PATH = "./__model.sol"
+
+            with open(LOCAL_GOAL_PATH, "w+") as goal_file:
+                goal_file.write(solver.dimacs())
+
+            external_solver(LOCAL_GOAL_PATH, LOCAL_MODEL_PATH)
+
+            sat_model = SATModel.from_file(
+                LOCAL_MODEL_PATH, renaming=LOCAL_GOAL_PATH)
+
+            if sat_model.sat:
+                return [op.decode_model(sat_model) for op in self.majoranas]
+            else:
+                return None
 
 
 class DecentSolver:
@@ -89,16 +105,16 @@ class DecentSolver:
         self.n = n
         self.model = MajoranaModel(n)
 
-    def solve(self, method: Literal["z3", "sat"]):
+    def solve(self, method: Literal["z3", "sat"], *, external_solver: SATSolver | None = None):
 
-        optimal_model, optimal_weight = None, 2 * self.n ** 2 + 1
+        optimal_model, optimal_weight = None, get_bk_weight(self.n) + 1
 
         while True:
             print(
                 f"solving {self.n} < {optimal_weight} weight")
             self.model.restrict_weight(optimal_weight)
-            if (solution := self.model.solve(method)) is not None:
-                optimal_model, optimal_weight = solution, calculate_weight(
+            if (solution := self.model.solve(method, external_solver=external_solver)) is not None:
+                optimal_model, optimal_weight = solution, get_pauli_weight(
                     solution)
             else:
                 return optimal_model, optimal_weight

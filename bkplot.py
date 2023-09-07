@@ -2,10 +2,12 @@
 plot the average pauli weight of bravyi-kitaev transformation
 """
 
-from fermihedral import get_bk_weight
+from math import log2
+
 from matplotlib.pyplot import plot, savefig
 from scipy.stats import linregress
-from math import log2
+
+from fermihedral import get_bk_weight
 
 MIN_QUBITS = 1
 MAX_QUBITS = 20
