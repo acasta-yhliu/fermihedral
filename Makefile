@@ -1,9 +1,6 @@
-MODEL_FILE=model
-RESULT_FILE=result
-
 .PHONY: desolve
 desolve:
-	python3 desolve.py 12
+	python3 desolve.py 10 2
 
 .PHONY: bkplot
 bkplot:

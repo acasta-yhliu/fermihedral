@@ -30,9 +30,9 @@ def get_bk_weight(n_modes: int):
 
 
 class MajoranaModel:
-    def __init__(self, nqubits: int, max_independent_length: int = 4) -> None:
-        self.nqubits = nqubits
-        self.majoranas = [Pauli(nqubits) for _ in range(2 * nqubits)]
+    def __init__(self, n_modes: int, spill: int = 0, max_independent_length: int = 4) -> None:
+        self.nqubits = n_modes
+        self.majoranas = [Pauli(n_modes + spill) for _ in range(2 * n_modes)]
         self.goal = Goal()
 
         print("> generating constraints for partial algebraic independent")
@@ -101,11 +101,11 @@ class MajoranaModel:
 
 
 class DecentSolver:
-    def __init__(self, n: int) -> None:
+    def __init__(self, n: int, spill: int = 0) -> None:
         self.n = n
-        self.model = MajoranaModel(n)
+        self.model = MajoranaModel(n, spill)
 
-    def solve(self, method: Literal["z3", "sat"], *, external_solver: SATSolver | None = None):
+    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: SATSolver | None = None):
 
         optimal_model, optimal_weight = None, get_bk_weight(self.n) + 1
 
