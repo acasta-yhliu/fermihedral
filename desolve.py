@@ -7,7 +7,7 @@ from fermihedral.satutil import Kissat
 print(
     f"> solving decenting model for {nmodes} modes, {nmodes} + {spill} qubits")
 
-solver = DecentSolver(int(nmodes), int(spill))
+solver = DecentSolver(int(nmodes), int(spill), -1)
 
 kissat = Kissat()
 

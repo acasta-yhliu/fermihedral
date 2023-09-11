@@ -1,6 +1,6 @@
 .PHONY: desolve
 desolve:
-	python3 desolve.py 10 2
+	python3 desolve.py 5 2
 
 .PHONY: bkplot
 bkplot:

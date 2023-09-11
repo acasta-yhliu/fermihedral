@@ -101,9 +101,9 @@ class MajoranaModel:
 
 
 class DecentSolver:
-    def __init__(self, n: int, spill: int = 0) -> None:
+    def __init__(self, n: int, spill: int = 0, max_independent: int = 4) -> None:
         self.n = n
-        self.model = MajoranaModel(n, spill)
+        self.model = MajoranaModel(n, spill, max_independent)
 
     def solve(self, method: Literal["z3", "dimacs"], *, external_solver: SATSolver | None = None):
 
