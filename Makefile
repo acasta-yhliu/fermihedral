@@ -1,11 +1,18 @@
-.PHONY: desolve
-desolve:
-	python3 desolve.py 5 2
+.PHONY: all
+all:
+	@echo "avaliable targets:"
+	@echo "    decent        use decent solver to solve optimal mapping"
+	@echo "    spill         calculate weight when extra qubits are avaliable"
+	@echo "    plot          plot something"
 
-.PHONY: bkplot
-bkplot:
-	python3 -B bkplot.py
+.PHONY: decent
+decent:
+	python3 decent-test.py 12 0
 
-.PHONY: bksolve
-bksolve:
-	python3 -B bksolve.py 10
+.PHONY: spill
+spill:
+	python3 spill-test.py 4
+
+.PHONY: plot
+plot:
+	python3 -B plot.py

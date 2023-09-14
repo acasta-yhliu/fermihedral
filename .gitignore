@@ -166,6 +166,7 @@ cython_debug/
 # Model
 *.cnf
 *.sol
+*.csv
 
 # Plot
 *.png
