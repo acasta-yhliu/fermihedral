@@ -1,6 +1,6 @@
 from functools import reduce
 from operator import add
-from typing import Literal
+from typing import Literal, Optional
 
 from openfermion import FermionOperator, QubitOperator, bravyi_kitaev
 from z3 import (And, BitVecVal, BoolRef, Goal, If, Not, Or, Solver, Then, Xor,
@@ -68,7 +68,7 @@ class MajoranaModel:
                 weight_constraints.append(to_bitvec(Or(op.bit0, op.bit1)))
         self.goal.add(reduce(add, weight_constraints) < weight)
 
-    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: SATSolver | None = None):
+    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: Optional[SATSolver] = None):
         solver = Solver()
         solver.add(Then('simplify', 'bit-blast', 'tseitin-cnf')(self.goal)[0])
 
@@ -106,7 +106,7 @@ class DecentSolver:
         self.model = MajoranaModel(n, spill, max_independent)
         self.relaxation = max_independent
 
-    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: SATSolver | None = None):
+    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: Optional[SATSolver] = None):
 
         optimal_model, optimal_weight = None, get_bk_weight(self.n) + 1
 

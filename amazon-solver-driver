@@ -1,0 +1,18 @@
+#!/bin/sh
+
+export ISENGARD_PRODUCTION_ACCOUNT=false
+export AWS_ACCESS_KEY_ID=ASIARD5MAGER3P7TCVVU
+export AWS_SECRET_ACCESS_KEY=VB0V23n+Mf+yiRbSvhLGEPn35dOBnHcfjtHP/Ye4
+export AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEF8aCXVzLWVhc3QtMSJHMEUCIQDr/frIwlc9otgNd/LE7F9bIdRI93bo7ZUd35DCPJYofwIgPMaVYWrktexqCM0U47Y5QqDAJ/2GW67bmPf48+Yz0WIqnwIISBABGgwwNzcxMzMyNjMxMzkiDNUGmujLrJVjCTDvJir8AUPP0Fu6xB9xW7c7Hko5yuf2S9uWaR+jSGRYa7jDC90RUOh9VJIXcQ8txrCBtquq/1CQ5xscvxAGOUGEgJXz5by2EId/ZHEcdI7/NCdUwX4mVUV5adDKjPllR6PLo6eucHDdY6mZyxIC6GNbExmuGcnMzxiVcluATvicHgIJLCxSGhUXXpuceEmnFBDVvz4uQVrAx7ViPJJMReGCYirqjnwq02ZSpCsld0NdexsQVJ+sv1XM1JGcI+MedTGz3waU0Z4ltuVEcnijzuWlfg+gakFdd4R5IKWmVX6dZxIO8iUcqMN+Z6VFeEKTq8quoWxsJT+QE3GxlsRUkKU8ZjDqvYyoBjqdAYAqZT6Qy6Vbz2OsAIZvFUj2DBnt+VNyRYvjyTrnQhqf9JfxTWJZel8Tzsg7KVLRa66g9JOUB+X1ldf5G4zaHozz0EGV7TGrlNm5vx9CTFIpeBklAXGBxNIpeVuZVngt+3yh893Z9ScMXifnc5FaG9YvgjsNW4AJSIresaxLFS4mcvWC8mCjOLnbD8TryWu31sZ3oIObkYqGNEeayik=
+
+arg-ats start-solver-task \
+    --stage prod \
+    --region us-east-1 \
+    --language dimacs \
+    --formula-file $1 \
+    --async \
+    --output-directory . \
+    --solver.solver-pool-name mallob_fermion_solver \
+    >/dev/null
+
+mv solver-task-* $2

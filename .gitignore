@@ -170,3 +170,7 @@ cython_debug/
 
 # Plot
 *.png
+
+# keys
+# arg-ats-solver
+session-key*
