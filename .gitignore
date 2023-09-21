@@ -166,11 +166,3 @@ cython_debug/
 # Model
 *.cnf
 *.sol
-*.csv
-
-# Plot
-*.png
-
-# keys
-# arg-ats-solver
-session-key*

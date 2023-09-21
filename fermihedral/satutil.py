@@ -1,44 +1,77 @@
-from os import system, environ
-from typing import Any, Optional
+from os import system
+from typing import List
 
 
 class SATSolver:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, dimacs: str) -> None:
+        self._GOAL = "__goal.cnf"
+        self._MODEL = "__model.sol"
 
-    def __call__(self, goal_path: str, model_path: str) -> bool:
+        self._model = None
+
+        # dimacs file format handler
+        self.clauses = []
+        self.comments = []
+
+        for line in dimacs.splitlines():
+            if line[0] == "c":
+                self.comments.append(line)
+            else:
+                self.clauses.append(line + '\n')
+
+    def invoke(self):
         ...
+
+    def block(self):
+        blocks = []
+        for i in self._model.renaming.values():
+            truth = self._model.model[i]
+            blocks.append(-i if truth else i)
+        self.clauses.append(f"{' '.join(map(str, blocks))} 0\n")
+        self._model = None
+
+    def check(self) -> bool:
+        if self._model is None:
+            with open(self._GOAL, "w+") as goal:
+                goal.writelines(self.clauses)
+            self.invoke()
+            self._model = SATModel.from_file(self._MODEL, self.comments)
+        return self._model.sat
+
+    def model(self) -> "SATModel":
+        return self._model
 
 
 class Kissat(SATSolver):
-    def __init__(self, timeout: int = -1) -> None:
-        super().__init__()
+    def __init__(self, dimacs: str, timeout: int = -1, relaxed: bool = False) -> None:
+        super().__init__(dimacs)
         self.timeout = timeout
+        self.relaxed = relaxed
 
-    def __call__(self, goal_path: str, model_path: str) -> bool:
+    def invoke(self):
         timeout = "" if self.timeout == -1 else f"--time={self.timeout}"
+        relaxed = "--relaxed" if self.relaxed else ""
+        system(f"kissat {timeout} {relaxed} -q {self._GOAL} >{self._MODEL}")
 
-        return system(f"kissat {timeout} -q {goal_path} >{model_path}") == 10
 
+class Cadical(SATSolver):
+    def __init__(self, dimacs: str, timeout: int = -1, relaxed: bool = False) -> None:
+        super().__init__(dimacs)
+        self.timeout = timeout
+        self.relaxed = relaxed
 
-class AmazonSolver(SATSolver):
-    def __init__(self) -> None:
-        super().__init__()
-
-    def __call__(self, goal_path: str, model_path: str) -> bool:
-        return system(f"./amazon-solver-driver {goal_path} {model_path}")
+    def invoke(self):
+        timeout = "" if self.timeout == -1 else f"-t {self.timeout}"
+        relaxed = "--relaxed" if self.relaxed else ""
+        system(f"cadical {timeout} {relaxed} -q {self._GOAL} >{self._MODEL}")
 
 
 class SATModel:
     @staticmethod
-    def from_file(filename: str, *, renaming: Optional[str] = None):
-        if renaming:
-            with open(renaming, "r") as renaming_file:
-                # filter out the renaming part
-                renamings = ((tuple(i.strip().split(
-                    ' ')[1:])) for i in renaming_file.readlines() if i[0] == "c")
-                renamings = dict((int(i[1]), int(i[0]))
-                                 for i in renamings if i[1][0] != "k")
+    def from_file(filename: str, renaming: List[str]):
+        renamings = (i.split(' ')[1:] for i in renaming)
+        renamings = dict((int(i[1]), int(i[0]))
+                         for i in renamings if i[1][0] != "k")
 
         with open(filename, "r") as file:
             return SATModel(file.read(), renamings)

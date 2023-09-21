@@ -1,14 +1,16 @@
 from functools import reduce
-from operator import add
-from typing import Literal, Optional
+from itertools import combinations
+from operator import add, ge, gt, le, lt, eq
+from typing import Literal, Type
 
+import math
+from tqdm import tqdm
 from openfermion import FermionOperator, QubitOperator, bravyi_kitaev
-from z3 import (And, BitVecVal, BoolRef, Goal, If, Not, Or, Solver, Then, Xor,
-                sat)
+from z3 import (And, BitVecVal, BoolRef, Goal, If, Not, Or, Solver, Then, Xor)
 
-from .iterators import Combination, PowerSet
-from .pauli import Pauli, PauliOp
-from .satutil import SATModel, SATSolver
+from .iterators import PowerSet
+from .pauli import Pauli
+from .satutil import SATSolver
 
 
 def get_pauli_weight(model: list[str]):
@@ -30,19 +32,24 @@ def get_bk_weight(n_modes: int):
 
 
 class MajoranaModel:
-    def __init__(self, n_modes: int, spill: int = 0, max_independent_length: int = 4) -> None:
+    def __init__(self, n_modes: int, independence: bool = True) -> None:
         self.nqubits = n_modes
-        self.majoranas = [Pauli(n_modes + spill) for _ in range(2 * n_modes)]
+        self.majoranas = [Pauli(n_modes) for _ in range(2 * n_modes)]
         self.goal = Goal()
 
         # print("> generating constraints for partial algebraic independent")
-        for comb in PowerSet(self.majoranas, 2, max_independent_length):
-            zipped = map(lambda x: reduce(Xor, x), zip(
-                *(i.iter_bits() for i in comb)))
-            self.goal.add(Or(*zipped))
+        n_ops = len(self.majoranas)
+        assert n_ops == 2 * n_modes
+        n_pairs = math.comb(n_ops, 2)
+
+        if independence:
+            for comb in tqdm(PowerSet(self.majoranas, 3), total=(pow(2, 2 * n_modes) - n_ops - n_pairs - 1)):
+                zipped = map(lambda x: reduce(Xor, x), zip(
+                    *(i.iter_bits() for i in comb)))
+                self.goal.add(Or(*zipped))
 
         # print("> generating constraints for anti-commutativity")
-        for sa, sb in Combination(self.majoranas, 2):
+        for sa, sb in tqdm(combinations(self.majoranas, 2), total=n_pairs):
             xors = []
             for a, b in zip(sa, sb):
                 xors.append(Or(And(a.bit0, Not(b.bit0), b.bit1), And(a.bit1, b.bit0, Not(
@@ -50,14 +57,14 @@ class MajoranaModel:
             self.goal.add(reduce(Xor, xors))
 
         # print("> generating constraints for vaccuum state preservation")
-        for m1, m2 in zip(self.majoranas[::2], self.majoranas[1::2]):
-            def pairing(op_pair: tuple[PauliOp, PauliOp]):
-                op1, op2 = op_pair
-                return Or(And(op1.bit0, Not(op1.bit1), Not(op2.bit0), op2.bit1), And(op1.bit0, op1.bit1, Not(op2.bit0), Not(op2.bit1)))
+        # for m1, m2 in zip(self.majoranas[::2], self.majoranas[1::2]):
+        #     def pairing(op_pair: tuple[PauliOp, PauliOp]):
+        #         op1, op2 = op_pair
+        #         return Or(And(op1.bit0, Not(op1.bit1), Not(op2.bit0), op2.bit1), And(op1.bit0, op1.bit1, Not(op2.bit0), Not(op2.bit1)))
 
-            self.goal.add(reduce(Or, map(pairing, zip(m1, m2))))
+        #     self.goal.add(reduce(Or, map(pairing, zip(m1, m2))))
 
-    def restrict_weight(self, weight: int):
+    def restrict_weight(self, weight: int, *, relationship: Literal["<", "<=", ">", ">=", "=="] = "<"):
         def to_bitvec(b: BoolRef):
             return If(b, BitVecVal(1, 4 + self.nqubits), BitVecVal(0, 4 + self.nqubits))
 
@@ -66,56 +73,170 @@ class MajoranaModel:
         for string in self.majoranas:
             for op in string:
                 weight_constraints.append(to_bitvec(Or(op.bit0, op.bit1)))
-        self.goal.add(reduce(add, weight_constraints) < weight)
 
-    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: Optional[SATSolver] = None):
-        solver = Solver()
-        solver.add(Then('simplify', 'bit-blast', 'tseitin-cnf')(self.goal)[0])
+        relationship_op = {"<": lt, "<=": le,
+                           ">": gt, ">=": ge, "==": eq}[relationship]
+        self.goal.add(relationship_op(reduce(add, weight_constraints), weight))
 
-        if method == "z3":
-            print("> solving via z3")
+    def _solver_setup(self, *, solver_init: Type[SATSolver], solver_args):
+        z3_solver = Solver()
+        z3_solver.add(Then('simplify', 'bit-blast',
+                      'tseitin-cnf')(self.goal)[0])
 
-            if solver.check() == sat:
-                model = solver.model()
-                return [op.decode_z3(model) for op in self.majoranas]
-            else:
-                return None
-        elif method == "dimacs":
-            # print("> solving via invoking external sat solver")
+        return solver_init(z3_solver.dimacs(), *solver_args)
 
-            LOCAL_GOAL_PATH = "./__goal.cnf"
-            LOCAL_MODEL_PATH = "./__model.sol"
+    def solve_exists(self, *, solver_init: Type[SATSolver], solver_args):
+        solver = self._solver_setup(
+            solver_init=solver_init, solver_args=solver_args)
 
-            with open(LOCAL_GOAL_PATH, "w+") as goal_file:
-                goal_file.write(solver.dimacs())
+        if solver.check():
+            model = solver.model()
+            return [op.decode_model(model) for op in self.majoranas]
+        else:
+            return None
 
-            external_solver(LOCAL_GOAL_PATH, LOCAL_MODEL_PATH)
+    def solve_forall(self, max: int = 30, *, progess: bool = False, solver_init: Type[SATSolver], solver_args):
+        solver = self._solver_setup(
+            solver_init=solver_init, solver_args=solver_args)
 
-            sat_model = SATModel.from_file(
-                LOCAL_MODEL_PATH, renaming=LOCAL_GOAL_PATH)
+        solutions = []
 
-            if sat_model.sat:
-                return [op.decode_model(sat_model) for op in self.majoranas]
-            else:
-                return None
+        while solver.check() and len(solutions) < max:
+            if progess:
+                print(
+                    f"\rfound {len(solutions)}/{max} solutions for {self.nqubits} modes", end="")
+            model = solver.model()
+            solutions.append([op.decode_model(model)
+                              for op in self.majoranas])
+            solver.block()
+        if progess:
+            print("\r                                                                                                           \r", end="")
+        return solutions
 
 
-class DecentSolver:
-    def __init__(self, n: int, spill: int = 0, max_independent: int = 4) -> None:
+class DescentSolver:
+    def __init__(self, n: int, independence: bool = True) -> None:
         self.n = n
-        self.model = MajoranaModel(n, spill, max_independent)
-        self.relaxation = max_independent
+        self.model = MajoranaModel(n, independence)
 
-    def solve(self, method: Literal["z3", "dimacs"], *, external_solver: Optional[SATSolver] = None):
-
+    def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
         optimal_model, optimal_weight = None, get_bk_weight(self.n) + 1
 
         while True:
-            print(
-                f"solving {self.n} < {optimal_weight} weight, relax = {self.relaxation}")
+            if progress:
+                print(
+                    f"\rfound {optimal_weight} weight for {self.n} modes", end="")
             self.model.restrict_weight(optimal_weight)
-            if (solution := self.model.solve(method, external_solver=external_solver)) is not None:
+            if (solution := self.model.solve_exists(solver_init=solver_init, solver_args=solver_args)) is not None:
                 optimal_model, optimal_weight = solution, get_pauli_weight(
                     solution)
             else:
+                if progress:
+                    print(
+                        "\r                                                                                                           \r", end="")
                 return optimal_model, optimal_weight
+
+
+# class ProgessiveSolver:
+#     def __init__(self, pred_model: list[str], extra_Z: int = 0) -> None:
+#         # calculate pred modes
+#         pred_2n_modes = len(pred_model)
+
+#         assert pred_2n_modes % 2 == 0
+#         assert extra_Z <= pred_2n_modes
+
+#         pred_n_modes = pred_2n_modes // 2
+#         self.n_modes = pred_n_modes + 1
+#         self.extra_Z = extra_Z
+
+#         # append extra Z and I
+#         pred_model = [pred_model[i] + ("Z" if i <
+#                       extra_Z else "_") for i in range(0, len(pred_model))]
+
+#         self.pred_model = pred_model
+
+#         # encode pred model into boolean
+#         ENCODE = {"_": (False, False), "X": (
+#             False, True), "Y": (True, False), "Z": (True, True)}
+#         pred_model: List[List[Tuple[bool, bool]]] = [[ENCODE[op] for op in i]
+#                                                      for i in pred_model]
+
+#         # construct extra pauli strings
+#         self.extra_op1 = Pauli(pred_n_modes)  # ****X
+#         self.extra_op2 = Pauli(pred_n_modes)  # ****Y
+
+#         # construct constraints
+#         self.goal = Goal()
+
+#         # generate anti commutativity constraint
+#         def gen_anti_comm(pauli: Pauli):
+#             for op in pred_model:
+#                 xors = []
+#                 for a, b in zip(pauli, op[:-1]):  # except the extra one
+#                     # print(a, b)
+#                     xors.append(Or(And(a.bit0, Not(b[0]), b[1]), And(a.bit1, b[0], Not(
+#                         b[1])), And(b[0], Not(a.bit0), a.bit1), And(b[1], a.bit0, Not(a.bit1))))
+
+#                 if op[-1] == (True, True):  # additional Z
+#                     xors.append(True)
+
+#                 self.goal.add(reduce(Xor, xors))
+
+#         gen_anti_comm(self.extra_op1)
+#         gen_anti_comm(self.extra_op2)
+
+#         # anti commutativity for extra op1 and op2, note that the last op is different
+#         xors = [True]
+#         for a, b in zip(self.extra_op1, self.extra_op2):
+#             xors.append(Or(And(a.bit0, Not(b.bit0), b.bit1), And(a.bit1, b.bit0, Not(
+#                 b.bit1)), And(b.bit0, Not(a.bit0), a.bit1), And(b.bit1, a.bit0, Not(a.bit1))))
+#         self.goal.add(reduce(Xor, xors))
+
+#         # generate algebraic independence along extra Z sets
+
+#         extra_Z_group = pred_model[:extra_Z]
+
+#         def flatten_trim(matrix):
+#             return matrix[-1]
+
+#         for comb in PowerSet(extra_Z_group, 1):
+#             comb = (*map(flatten_trim, comb), list(self.extra_op1.iter_bits()),
+#                     list(self.extra_op2.iter_bits()))
+#             zipped = map(lambda x: reduce(Xor, x), zip(*comb))
+#             self.goal.add(Or(*zipped))
+
+#     def restrict_weight(self, weight: int):
+#         assert weight >= self.extra_Z + 2  # Z, ****X, ****Y
+
+#         remain_weight = weight - self.extra_Z - 2
+
+#         def to_bitvec(b: BoolRef):
+#             return If(b, BitVecVal(1, 4 + self.n_modes), BitVecVal(0, 4 + self.n_modes))
+
+#         weight_constraints = [to_bitvec(Or(op.bit0, op.bit1))
+#                               for op in self.extra_op1]
+#         weight_constraints.extend([to_bitvec(Or(op.bit0, op.bit1))
+#                                    for op in self.extra_op2])
+#         self.goal.add(reduce(add, weight_constraints) < remain_weight)
+
+#     def solve(self, external_solver: SATSolver):
+#         solver = Solver()
+#         solver.add(Then('simplify', 'bit-blast', 'tseitin-cnf')(self.goal)[0])
+
+#         LOCAL_GOAL_PATH = "./__goal.cnf"
+#         LOCAL_MODEL_PATH = "./__model.sol"
+
+#         with open(LOCAL_GOAL_PATH, "w+") as goal_file:
+#             goal_file.write(solver.dimacs())
+
+#         external_solver(LOCAL_GOAL_PATH, LOCAL_MODEL_PATH)
+
+#         sat_model = SATModel.from_file(
+#             LOCAL_MODEL_PATH, renaming=LOCAL_GOAL_PATH)
+
+#         if sat_model.sat:
+#             op1 = self.extra_op1.decode_model(sat_model) + "X"
+#             op2 = self.extra_op2.decode_model(sat_model) + "Y"
+#             return [*self.pred_model, op1, op2]
+#         else:
+#             return None

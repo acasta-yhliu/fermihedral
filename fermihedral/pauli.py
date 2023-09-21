@@ -1,7 +1,10 @@
-from typing import Iterable
+from functools import reduce
+from operator import and_, xor
+from typing import Iterable, List
 
 from z3 import Bools, ModelRef
 
+from .iterators import PowerSet
 from .satutil import SATModel
 
 _GLOBAL_BOOLEAN_ID = 0
@@ -53,8 +56,33 @@ class Pauli(Iterable[PauliOp]):
     def __iter__(self):
         return iter(self.ops)
 
+    def __getitem__(self, key) -> PauliOp:
+        return self.ops[key]
+
     def decode_z3(self, model: ModelRef):
         return ''.join((i.decode_z3(model) for i in self.ops))
 
     def decode_model(self, model: SATModel):
         return ''.join((i.decode_model(model) for i in self.ops))
+
+
+def check_algebraic_independent(solution: List[str]):
+    def encode_string(string: str) -> List[bool]:
+        encoded = []
+        for char in string:
+            encoded.extend({"_": (False, False), "X": (
+                False, True), "Y": (True, False), "Z": (True, True)}[char])
+        return encoded
+
+    solution = list(map(encode_string, solution))
+
+    def test_group(group: List[List[bool]]):
+        group = zip(*group)
+        group = map(lambda x: not reduce(xor, x), group)
+        group = reduce(and_, group)
+        return group
+
+    for i in PowerSet(solution, 2):
+        if test_group(i):
+            return True
+    return False

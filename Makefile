@@ -1,18 +1,31 @@
 .PHONY: all
 all:
 	@echo "avaliable targets:"
-	@echo "    decent        use decent solver to solve optimal mapping"
-	@echo "    spill         calculate weight when extra qubits are avaliable"
-	@echo "    plot          plot something"
+	@echo "    descent       	use descent solver to solve optimal mapping"
+	@echo "                  	within small scales (~12 modes)"
+	@echo ""
+	@echo "    free-descent     use descent solver without setting algebraic"
+	@echo "                     dependence to solve approxmiate optimal"
+	@echo "                     mapping within small scales."
+	@echo ""
+	@echo "    probability   	test the probability of algebraic dependent"
+	@echo "                  	within small scales (~12 modes) and strict"
+	@echo "                  	minimum weight"
+	@echo ""
+	@echo "    clean         	clean up all experiment results and plots"
 
-.PHONY: decent
-decent:
-	python3 decent-test.py 12 0
+.PHONY: descent
+descent:
+	@python3 descent.py 8 true
 
-.PHONY: spill
-spill:
-	python3 spill-test.py 4
+.PHONY: free-descent
+free-descent:
+	@python3 descent.py 8 false
 
-.PHONY: plot
-plot:
-	python3 -B plot.py
+.PHONY: probability
+probability:
+	@python3 probability.py
+
+.PHONY: clean
+clean:
+	@rm *.csv *.png *.cnf *.sol
