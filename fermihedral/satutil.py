@@ -1,5 +1,13 @@
 from os import system
+from os.path import exists
 from typing import List
+
+
+def mkname(predname: str, ext: str):
+    if exists(predname):
+        return mkname(predname + "_", ext)
+    else:
+        return predname + ext
 
 
 class SATSolver:

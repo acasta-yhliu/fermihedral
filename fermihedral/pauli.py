@@ -1,4 +1,6 @@
 from functools import reduce
+from itertools import combinations
+from math import comb
 from operator import and_, xor
 from typing import Iterable, List
 
@@ -66,23 +68,34 @@ class Pauli(Iterable[PauliOp]):
         return ''.join((i.decode_model(model) for i in self.ops))
 
 
-def check_algebraic_independent(solution: List[str]):
-    def encode_string(string: str) -> List[bool]:
-        encoded = []
-        for char in string:
-            encoded.extend({"_": (False, False), "X": (
-                False, True), "Y": (True, False), "Z": (True, True)}[char])
-        return encoded
-
-    solution = list(map(encode_string, solution))
-
+def check_algebraic_independent(solution: List[str], tail: int):
     def test_group(group: List[List[bool]]):
-        group = zip(*group)
-        group = map(lambda x: not reduce(xor, x), group)
-        group = reduce(and_, group)
-        return group
+        deps = []
+        for row in zip(*group):
+            x, y, z = row.count("X") % 2, row.count(
+                "Y") % 2, row.count("Z") % 2
+            deps.append((x == 1 and y == 1 and z == 1)
+                        or (x == 0 and y == 0 and z == 0))
+        return reduce(and_, deps), deps
 
-    for i in PowerSet(solution, 2):
-        if test_group(i):
-            return True
-    return False
+    def count(iterable, obj):
+        n = 0
+        for i in iterable:
+            if i == obj:
+                n += 1
+        return n
+
+    def mean(iterable):
+        return 0 if len(iterable) == 0 else sum(iterable) / len(iterable)
+
+    dependent = False
+    dists = [[] for _ in range(tail)]
+    for i in PowerSet(solution, 3):
+        dependent_, truth_table = test_group(i)
+        dependent = dependent or dependent_
+        nlen = len(truth_table)
+        for i in range(1, tail + 1):
+            dists[i - 1].append(0 if comb(nlen, i) == 0 else count(map(lambda x: reduce(and_, x),
+                                combinations(truth_table, i)), True) / comb(nlen, i))
+
+    return dependent, [mean(i) for i in dists]

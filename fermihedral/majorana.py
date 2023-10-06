@@ -16,6 +16,9 @@ from .satutil import SATSolver
 def get_pauli_weight(model: list[str]):
     return sum(map(lambda x: len(x) - x.count("_"), model))
 
+def get_approx_weight(n_modes: int):
+    return int((0.65 * math.log2(n_modes) + 0.95) * 2 * n_modes)
+
 
 def get_bk_weight(n_modes: int):
     # accquire the weight provided by bk transformation, n_modes -> n_qubits
@@ -120,7 +123,8 @@ class DescentSolver:
         self.model = MajoranaModel(n, independence)
 
     def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
-        optimal_model, optimal_weight = None, get_bk_weight(self.n) + 1
+        optimal_model, optimal_weight = None, get_approx_weight(self.n) + 1
+        print(optimal_weight - 1, get_bk_weight(self.n))
 
         while True:
             if progress:
