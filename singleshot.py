@@ -13,6 +13,6 @@ nmodes = int(nmodes)
 solver = DescentSolver(nmodes, False)
 print("> start solving")
 solution, weight = solver.solve(progress=True,
-                                solver_init=Cadical, solver_args=[5 * 60 * 60])
+                                solver_init=Cadical, solver_args=[24 * 60 * 60])
 
-print(f"{nmodes},{weight},{solution}")
+print(f"{nmodes};{weight};{solution}")

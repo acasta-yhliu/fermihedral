@@ -39,7 +39,7 @@ def log_regress(x, y):
     return a, b, [a * i + b for i in log_x]
 
 
-print("    - plotting")
+print("    - plotting small scale")
 
 plt.clf()
 plt.figure(figsize=(8, 6.2))
@@ -62,6 +62,39 @@ plt.xlim(0.5, 8.5)
 plt.xlabel("Modes/n")
 plt.ylabel("Pauli Weight/n")
 plt.savefig("imgs/small-scale-average.pdf")
+
+print("    - plotting plain pauli weight")
+
+plt.clf()
+plt.figure(figsize=(8, 6.2))
+plt.plot(exp_n_modes, exp_avg_bk_weight, label="Bravyi-Kitaev",
+         marker="o", markerfacecolor='none', markeredgecolor='red', color='red', markersize=10, linewidth=1.5)
+plt.plot(exp_n_modes, exp_avg_fermihedral_weight,
+         label="Fermihedral", marker="x", markerfacecolor='none', markeredgecolor='blue', color='blue', markersize=10, linewidth=1.5)
+bk_a, bk_b, bk_data = log_regress(exp_n_modes, exp_avg_bk_weight)
+plt.plot(exp_n_modes, bk_data, color="red", ls="--", linewidth=1)
+fh_a, fh_b, fh_data = log_regress(exp_n_modes, exp_avg_fermihedral_weight)
+plt.plot(exp_n_modes, fh_data, color="blue", ls="--", linewidth=1)
+plt.legend(loc='lower right', bbox_to_anchor=(1, 0), ncol=1, fontsize=20)
+plt.grid()
+plt.xlabel("Modes/n")
+plt.ylabel("Pauli Weight/n")
+plt.savefig("imgs/plain-pauli-weight.pdf")
+
+print("    - plotting plain pauli weight (percentage)")
+
+plt.clf()
+plt.figure(figsize=(8, 6.2))
+improvement = [(exp_avg_bk_weight[i] - exp_avg_fermihedral_weight[i])
+               * 100 / exp_avg_bk_weight[i] for i in range(len(exp_n_modes))]
+avg_improvement = sum(improvement) / len(improvement)
+plt.bar(exp_n_modes, improvement)
+plt.plot(exp_n_modes, [avg_improvement for _ in range(
+    len(exp_n_modes))], color='red', linewidth=1.5)
+plt.grid()
+plt.xlabel("Modes/n")
+plt.ylabel("Improvement/%")
+plt.savefig("imgs/plain-pauli-weight-percentage.pdf")
 
 print("> plot algebraic indepence probability and distribution")
 

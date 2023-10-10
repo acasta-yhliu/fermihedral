@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 from functools import reduce
 from itertools import combinations
-from operator import add, ge, gt, le, lt, eq
+from operator import add, ge, gt, le, lt, eq, mul
 from typing import Literal, Type
 
 import math
@@ -9,12 +10,13 @@ from openfermion import FermionOperator, QubitOperator, bravyi_kitaev
 from z3 import (And, BitVecVal, BoolRef, Goal, If, Not, Or, Solver, Then, Xor)
 
 from .iterators import PowerSet
-from .pauli import Pauli
+from .pauli import PAULIOP_MULT, Pauli
 from .satutil import SATSolver
 
 
 def get_pauli_weight(model: list[str]):
     return sum(map(lambda x: len(x) - x.count("_"), model))
+
 
 def get_approx_weight(n_modes: int):
     return int((0.65 * math.log2(n_modes) + 0.95) * 2 * n_modes)
@@ -81,6 +83,24 @@ class MajoranaModel:
                            ">": gt, ">=": ge, "==": eq}[relationship]
         self.goal.add(relationship_op(reduce(add, weight_constraints), weight))
 
+    def restrict_hamiltonian_weight(self, occurence: list[tuple[int, ...]], weight: int, nbits: int, *, relationship: Literal["<", "<=", ">", ">=", "=="] = "<"):
+        def to_bitvec(b: BoolRef):
+            return If(b, BitVecVal(1, nbits), BitVecVal(0, nbits))
+
+        weight_constraints = []
+        for product in occurence:
+            comb_ops = [self.majoranas[i - 1] for i in product]
+            comb_bits = map(lambda x: reduce(Xor, x), zip(
+                *(i.iter_bits() for i in comb_ops)))
+            for bit in comb_bits:
+                bit0, bit1 = bit, next(comb_bits)
+                weight_constraints.append(to_bitvec(Or(bit0, bit1)))
+        hamiltonian_weight_constraint = reduce(add, weight_constraints)
+
+        relationship_op = {"<": lt, "<=": le,
+                           ">": gt, ">=": ge, "==": eq}[relationship]
+        self.goal.add(relationship_op(hamiltonian_weight_constraint, weight))
+
     def _solver_setup(self, *, solver_init: Type[SATSolver], solver_args):
         z3_solver = Solver()
         z3_solver.add(Then('simplify', 'bit-blast',
@@ -124,7 +144,6 @@ class DescentSolver:
 
     def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
         optimal_model, optimal_weight = None, get_approx_weight(self.n) + 1
-        print(optimal_weight - 1, get_bk_weight(self.n))
 
         while True:
             if progress:
@@ -140,6 +159,62 @@ class DescentSolver:
                         "\r                                                                                                           \r", end="")
                 return optimal_model, optimal_weight
 
+
+@dataclass
+class HamiltonianSolver:
+    name: str
+    n_modes: int
+    occurence: list[tuple[int, ...]]
+
+    def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
+        def get_hamiltonian_pauli_weight(solution: list[str]):
+            def pauli_string_mult(a: str, b: str):
+                return "".join(PAULIOP_MULT[i] for i in zip(a, b))
+
+            h_weight = 0
+            for product in self.occurence:
+                result_op = reduce(pauli_string_mult,
+                                   (solution[i - 1] for i in product))
+                h_weight += len(result_op) - result_op.count("_")
+            return h_weight
+
+        optimal_model, _ = DescentSolver(self.n_modes, False).solve(
+            progress=progress, solver_init=solver_init, solver_args=solver_args)
+        optimal_weight = get_hamiltonian_pauli_weight(optimal_model)
+        suggested_bits = math.floor(math.log2(optimal_weight))
+
+        model = MajoranaModel(self.n_modes, False)
+
+        while True:
+            if progress:
+                print(
+                    f"found {optimal_weight} Hamiltonian Pauli weight ({get_pauli_weight(optimal_model)}) for '{self.name}' ({self.n_modes} modes)")
+
+            model.restrict_hamiltonian_weight(
+                self.occurence, optimal_weight, suggested_bits + 2)
+            if (solution := model.solve_exists(solver_init=solver_init, solver_args=solver_args)) is not None:
+                optimal_model = solution
+                optimal_weight = get_hamiltonian_pauli_weight(solution)
+            else:
+                return optimal_model, optimal_weight
+
+    def get_bk_weight(self):
+        # accquire the weight provided by bk transformation, n_modes -> n_qubits
+        def get_weight(op: QubitOperator):
+            return len(list(op.terms.keys())[0])  # weird
+
+        # create corresponding operators
+        majoranas = [FermionOperator(f"[{i}] + [{i}^]") for i in range(self.n_modes)] + [
+            FermionOperator(f"[{i}] - [{i}^]") for i in range(self.n_modes)]
+        majoranas = [bravyi_kitaev(i, self.n_modes) for i in majoranas]
+
+        weight = 0
+
+        for product in self.occurence:
+            result_op = reduce(mul, (majoranas[i - 1] for i in product))
+            weight += get_weight(result_op)
+
+        return weight
 
 # class ProgessiveSolver:
 #     def __init__(self, pred_model: list[str], extra_Z: int = 0) -> None:
