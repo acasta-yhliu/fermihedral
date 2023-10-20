@@ -65,6 +65,10 @@ plt.savefig("imgs/small-scale-average.pdf")
 
 print("    - plotting plain pauli weight")
 
+exp_n_modes = exp_n_modes[8:]
+exp_avg_bk_weight = exp_avg_bk_weight[8:]
+exp_avg_fermihedral_weight = exp_avg_fermihedral_weight[8:]
+
 plt.clf()
 plt.figure(figsize=(8, 6.2))
 plt.plot(exp_n_modes, exp_avg_bk_weight, label="Bravyi-Kitaev",
@@ -81,6 +85,8 @@ plt.xlabel("Modes/n")
 plt.ylabel("Pauli Weight/n")
 plt.savefig("imgs/plain-pauli-weight.pdf")
 
+print(f"    - !! copy !! expected improvement : {(bk_a - fh_a) * 100 / bk_a:.2f}%")
+
 print("    - plotting plain pauli weight (percentage)")
 
 plt.clf()
@@ -95,6 +101,8 @@ plt.grid()
 plt.xlabel("Modes/n")
 plt.ylabel("Improvement/%")
 plt.savefig("imgs/plain-pauli-weight-percentage.pdf")
+
+print(f"    - !! copy !! general improvment : {avg_improvement:.2f}%")
 
 print("> plot algebraic indepence probability and distribution")
 
