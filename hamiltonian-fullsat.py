@@ -1,7 +1,7 @@
 from itertools import product
 from sys import argv
 from fermihedral import HamiltonianSolver
-from fermihedral.satutil import Kissat
+from fermihedral.satutil import Kissat, Cadical
 
 # parse hamiltonian from file
 [_, hamiltonian_filename] = argv
@@ -75,7 +75,7 @@ print(
     f"> solving with Hamiltonian Pauli weight, problem = '{solver.name}' ({solver.n_modes} modes), bk = {solver.get_bk_weight()}")
 
 solution, weight = solver.solve(
-    progress=True, solver_init=Kissat, solver_args=[24 * 60 * 60])
+    progress=True, solver_init=Kissat, solver_args=[36 * 60 * 60])
 
 # calculate hamiltonian pauli weight under bravyi-kitaev transformation
 bk_weight = solver.get_bk_weight()

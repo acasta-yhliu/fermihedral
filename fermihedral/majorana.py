@@ -4,14 +4,18 @@ from itertools import combinations
 from operator import add, ge, gt, le, lt, eq, mul
 from typing import Literal, Type
 
+import random
 import math
 from tqdm import tqdm
 from openfermion import FermionOperator, QubitOperator, bravyi_kitaev
 from z3 import (And, BitVecVal, BoolRef, Goal, If, Not, Or, Solver, Then, Xor)
 
 from .iterators import PowerSet
-from .pauli import PAULIOP_MULT, Pauli
+from .pauli import PAULIOP_MULT, Pauli, PauliOp
 from .satutil import SATSolver
+
+
+EXTRA = 0
 
 
 def get_pauli_weight(model: list[str]):
@@ -37,10 +41,13 @@ def get_bk_weight(n_modes: int):
 
 
 class MajoranaModel:
-    def __init__(self, n_modes: int, independence: bool = True) -> None:
+    def __init__(self, n_modes: int, independence: bool = True, vacuum: bool = False) -> None:
         self.nqubits = n_modes
-        self.majoranas = [Pauli(n_modes) for _ in range(2 * n_modes)]
+        self.majoranas = [Pauli(n_modes + EXTRA) for _ in range(2 * n_modes)]
         self.goal = Goal()
+
+        print(
+            f"> model summary: {n_modes} modes, independence = {independence}, vacuum state = {vacuum}")
 
         # print("> generating constraints for partial algebraic independent")
         n_ops = len(self.majoranas)
@@ -61,13 +68,17 @@ class MajoranaModel:
                     b.bit1)), And(b.bit0, Not(a.bit0), a.bit1), And(b.bit1, a.bit0, Not(a.bit1))))
             self.goal.add(reduce(Xor, xors))
 
-        # print("> generating constraints for vaccuum state preservation")
-        # for m1, m2 in zip(self.majoranas[::2], self.majoranas[1::2]):
-        #     def pairing(op_pair: tuple[PauliOp, PauliOp]):
-        #         op1, op2 = op_pair
-        #         return Or(And(op1.bit0, Not(op1.bit1), Not(op2.bit0), op2.bit1), And(op1.bit0, op1.bit1, Not(op2.bit0), Not(op2.bit1)))
+        if vacuum:
+            # print("> generating constraints for vaccuum state preservation")
+            def pairing(op_pair: tuple[PauliOp, PauliOp]):
+                op1, op2 = op_pair
+                return And(Not(op1.bit0), op1.bit1, op2.bit0, Not(op2.bit1))
 
-        #     self.goal.add(reduce(Or, map(pairing, zip(m1, m2))))
+            for i in range(self.nqubits):
+                m2j = self.majoranas[2 * i]  # X
+                m2j1 = self.majoranas[2 * i + 1]  # Y
+
+                self.goal.add(reduce(Or, map(pairing, zip(m2j, m2j1))))
 
     def restrict_weight(self, weight: int, *, relationship: Literal["<", "<=", ">", ">=", "=="] = "<"):
         def to_bitvec(b: BoolRef):
@@ -138,9 +149,9 @@ class MajoranaModel:
 
 
 class DescentSolver:
-    def __init__(self, n: int, independence: bool = True) -> None:
+    def __init__(self, n: int, independence: bool = True, vacuum: bool = False) -> None:
         self.n = n
-        self.model = MajoranaModel(n, independence)
+        self.model = MajoranaModel(n, independence, vacuum)
 
     def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
         optimal_model, optimal_weight = None, get_approx_weight(self.n) + 1
@@ -166,18 +177,18 @@ class HamiltonianSolver:
     n_modes: int
     occurence: list[tuple[int, ...]]
 
-    def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
-        def get_hamiltonian_pauli_weight(solution: list[str]):
-            def pauli_string_mult(a: str, b: str):
-                return "".join(PAULIOP_MULT[i] for i in zip(a, b))
+    def get_hamiltonian_pauli_weight(self, solution: list[str]):
+        def pauli_string_mult(a: str, b: str):
+            return "".join(PAULIOP_MULT[i] for i in zip(a, b))
 
-            h_weight = 0
-            for product in self.occurence:
-                result_op = reduce(pauli_string_mult,
-                                   (solution[i - 1] for i in product))
-                h_weight += len(result_op) - result_op.count("_")
-            return h_weight
+        h_weight = 0
+        for product in self.occurence:
+            result_op = reduce(pauli_string_mult,
+                               (solution[i - 1] for i in product))
+            h_weight += len(result_op) - result_op.count("_")
+        return h_weight
 
+    def get_solution(self):
         try:
             with open("imgs/solution.log") as solution:
                 lines = solution.readlines()
@@ -186,26 +197,65 @@ class HamiltonianSolver:
                 solution = eval(solution)
 
                 print("> obtained solved optimal solution")
-                optimal_model = solution
-        except:
-            print("> failed to obtain solved optimal solution, solve from ground up")
-            optimal_model, _ = DescentSolver(self.n_modes, False).solve(
-                progress=progress, solver_init=solver_init, solver_args=solver_args)
-        optimal_weight = get_hamiltonian_pauli_weight(optimal_model)
+                return solution
+        except Exception as e:
+            print(
+                "> failed to obtain solved optimal solution, please solve the solution first")
+            raise e
+
+    def annealing(self, *, progress: bool = False, initial_temp: int, target_temp: int, alpha: int, iteration: int):
+        """using sim annealing to remap original solution, not by full SAT"""
+        model = self.get_solution()
+        weight = self.get_hamiltonian_pauli_weight(model)
+        last_id = len(model) - 1
+
+        def swap_ij(model, i, j):
+            model[i], model[j] = model[j], model[i]
+
+        temp = initial_temp
+        K = 1000
+
+        for iter_temp in tqdm(range(target_temp, initial_temp, alpha)):
+            for _ in range(iteration):
+                i = random.randint(0, last_id)
+                j = random.randint(0, last_id)
+
+                # try swap i and j for model
+                swap_ij(model, i, j)
+
+                new_weight = self.get_hamiltonian_pauli_weight(model)
+
+                if new_weight >= weight:
+                    # accept new solution by chance
+                    probability = math.exp(-(new_weight - weight) * K / temp)
+                    if random.random() < probability:
+                        weight = new_weight
+                    else:
+                        swap_ij(model, i, j)
+                else:
+                    # accept new solution
+                    weight = new_weight
+            print(weight, model)
+        return model, weight
+
+    def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):
+        optimal_model = self.get_solution()
+        optimal_weight = self.get_hamiltonian_pauli_weight(optimal_model)
         suggested_bits = math.floor(math.log2(optimal_weight))
 
-        model = MajoranaModel(self.n_modes, False)
+        model = MajoranaModel(self.n_modes, False, True)
 
         while True:
             if progress:
                 print(
                     f"found {optimal_weight} Hamiltonian Pauli weight ({get_pauli_weight(optimal_model)}) for '{self.name}' ({self.n_modes} modes)")
+                print(optimal_model)
 
             model.restrict_hamiltonian_weight(
                 self.occurence, optimal_weight, suggested_bits + 4)
             if (solution := model.solve_exists(solver_init=solver_init, solver_args=solver_args)) is not None:
                 optimal_model = solution
-                optimal_weight = get_hamiltonian_pauli_weight(solution)
+                optimal_weight = self.get_hamiltonian_pauli_weight(solution)
             else:
                 return optimal_model, optimal_weight
 
