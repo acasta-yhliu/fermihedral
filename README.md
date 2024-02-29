@@ -1,26 +1,21 @@
 # Fermihedral
 
-## Introduction
+Code for paper _Fermihedral: On the Optimal Compilation for Fermion-to-Qubit Encoding_
 
-## Run
+## Dependency
 
-First, setup a virtual environment and activate:
+To replicate our experiments, please at least have
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
+1. Python 3.9+ for this project
+2. For compiling the SAT solver `kissat`: `gcc` or `clang` and `make` are required.
 
-Then, install necessary Python packages:
+## Execute
 
-```bash
-pip3 install -r requirements.txt
-```
+To prepare the environment, execute `python3 prepare.py`, it will create the virtual environment, install packages and `kissat`.
 
-Run the experiment, `singleshot.py` to solve under a certain mode with _plain Pauli weight_ constraint and `hamiltonian.py` with _Hamiltonian Pauli weight_ constraint. `probability.py` uses the data to test the distribution of $A_k$ described in the paper.
+To obtain the results in one run, refer to the notebook `singleshot.ipynb`. Follow the cells and you will get the results. Please make sure you are using the virtual environment created by `prepare.sh` so that you have all packages loaded.
 
-Finally, use `plot.py` to produce figures.
+## Usage
 
-## SAT Solver
+## Cite
 
-To run the experiment, you have to have `kissat` in your path. You could build it compiling from source code or binary distribution via github.

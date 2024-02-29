@@ -59,7 +59,7 @@ class Kissat(SATSolver):
     def invoke(self):
         timeout = "" if self.timeout == -1 else f"--time={self.timeout}"
         relaxed = "--relaxed" if self.relaxed else ""
-        system(f"kissat {timeout} {relaxed} -q {self._GOAL} >{self._MODEL}")
+        system(f"./kissat/build/kissat {timeout} {relaxed} -q {self._GOAL} >{self._MODEL}")
 
 
 class Cadical(SATSolver):
