@@ -190,7 +190,7 @@ class HamiltonianSolver:
 
     def get_solution(self):
         try:
-            with open("imgs/solution.log") as solution:
+            with open("data/solution.log") as solution:
                 lines = solution.readlines()
                 target_line = lines[self.n_modes - 1]
                 _, weight, solution = target_line.strip().split(";")
@@ -235,7 +235,7 @@ class HamiltonianSolver:
                 else:
                     # accept new solution
                     weight = new_weight
-            print(weight, model)
+            # print(weight, model)
         return model, weight
 
     def solve(self, *, progress: bool = False, solver_init: Type[SATSolver], solver_args):

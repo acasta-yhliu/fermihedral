@@ -1,12 +1,11 @@
 from qiskit_nature.second_q.problems import LatticeModelProblem
 from math import sqrt
-from typing import Literal
-from qiskit.algorithms.eigensolvers import NumPyEigensolver
-from qiskit.algorithms.minimum_eigensolvers import NumPyMinimumEigensolver
+from qiskit_algorithms import NumPyMinimumEigensolver
+from qiskit_algorithms import NumPyEigensolver
 from qiskit_nature.second_q.algorithms import GroundStateEigensolver
 from qiskit_nature.second_q.algorithms import ExcitedStatesEigensolver
 import numpy as np
-from qiskit import QuantumCircuit, transpile
+from qiskit import QuantumCircuit
 from qiskit.circuit.library import PauliEvolutionGate
 
 from qiskit.quantum_info import Statevector
@@ -14,7 +13,6 @@ from qiskit_nature.second_q.mappers.fermionic_mapper import FermionicMapper
 from qiskit_nature.second_q.operators import FermionicOp
 from qiskit_nature.second_q.transformers import FreezeCoreTransformer
 from qiskit_nature.second_q.drivers import PySCFDriver
-from qiskit.synthesis import QDrift
 import qiskit_aer.noise as noise
 from qiskit_aer.primitives.estimator import Estimator
 
@@ -147,20 +145,18 @@ FERMI_HUBBARD_CACHE = {}
 
 def compile_fermi_hubbard(problem: LatticeModelProblem, mapper: FermionicMapper, *, time: float = 1.0):
     hamiltonian = mapper.map(problem.hamiltonian.second_q_op())
+    print(hamiltonian.num_qubits)
     nqubits = hamiltonian.num_qubits
 
     prompt = f"{mapper.__class__.__name__}"
-    if prompt not in FERMI_HUBBARD_CACHE:
-        print(prompt, "not found solved result")
-        calc = GroundStateEigensolver(mapper, NumPyMinimumEigensolver())
-        ground_state = calc.solve(problem)
-        initial_circuit = ground_state.eigenstates[-1][0]
-        initial_energy = ground_state.eigenvalues[-1]
-        FERMI_HUBBARD_CACHE[prompt] = (initial_circuit, initial_energy)
-        print(
-            f"> solved fermi hubbard, ground state, {mapper.__class__.__name__}, E = {initial_energy}")
-    else:
-        initial_circuit, initial_energy = FERMI_HUBBARD_CACHE[prompt]
+    print(prompt, "not found solved result")
+    calc = GroundStateEigensolver(mapper, NumPyMinimumEigensolver())
+    ground_state = calc.solve(problem)
+    initial_circuit = ground_state.eigenstates[-1][0]
+    initial_energy = ground_state.eigenvalues[-1]
+    FERMI_HUBBARD_CACHE[prompt] = (initial_circuit, initial_energy)
+    print(
+        f"> solved fermi hubbard, ground state, {mapper.__class__.__name__}, E = {initial_energy}")
 
     circuit = QuantumCircuit(nqubits, nqubits)
     circuit.append(initial_circuit, range(nqubits))

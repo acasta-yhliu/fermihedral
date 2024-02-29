@@ -166,3 +166,6 @@ cython_debug/
 # Model
 *.cnf
 *.sol
+
+kissat/
+!data/solution.log
