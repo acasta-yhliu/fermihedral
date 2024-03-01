@@ -1,3 +1,4 @@
+from typing import Literal
 from qiskit_nature.second_q.problems import LatticeModelProblem
 from math import sqrt
 from qiskit_algorithms import NumPyMinimumEigensolver
@@ -18,6 +19,13 @@ from qiskit_aer.primitives.estimator import Estimator
 
 noise_model = None
 
+DEVICE = "CPU"
+
+
+def config_device(device: Literal["CPU", "GPU"]):
+    global DEVICE
+    DEVICE = device
+
 
 def configure_noise(prob_1: float, prob_2: float):
     global noise_model
@@ -33,7 +41,7 @@ def configure_noise(prob_1: float, prob_2: float):
 
 
 def run_qiskit_circuit(circuit, observable, shots):
-    backend = Estimator(backend_options={"noise_model": noise_model, "device": "GPU"}, transpile_options={
+    backend = Estimator(backend_options={"noise_model": noise_model, "device": DEVICE}, transpile_options={
                         "optimization_level": 3, "basis_gates": ["u3", "cx"]}, run_options={"shots": shots})
     result = backend.run(circuit, observable).result()
     return result.values[0], sqrt(result.metadata[0]["variance"])
