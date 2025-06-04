@@ -42,3 +42,22 @@ Note: please make sure `./data` exists so that all generated data and cache file
 
 ## Cite
 
+```bibtex
+@inproceedings{liu2024fermihedral,
+author = {Liu, Yuhao and Che, Shize and Zhou, Junyu and Shi, Yunong and Li, Gushu},
+title = {Fermihedral: On the Optimal Compilation for Fermion-to-Qubit Encoding},
+year = {2024},
+isbn = {9798400703867},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3620666.3651371},
+doi = {10.1145/3620666.3651371},
+abstract = {This paper introduces Fermihedral, a compiler framework focusing on discovering the optimal Fermion-to-qubit encoding for targeted Fermionic Hamiltonians. Fermion-to-qubit encoding is a crucial step in harnessing quantum computing for efficient simulation of Fermionic quantum systems. Utilizing Pauli algebra, Fermihedral redefines complex constraints and objectives of Fermion-to-qubit encoding into a Boolean Satisfiability problem which can then be solved with high-performance solvers. To accommodate larger-scale scenarios, this paper proposed two new strategies that yield approximate optimal solutions mitigating the overhead from the exponentially large number of clauses. Evaluation across diverse Fermionic systems highlights the superiority of Fermihedral, showcasing substantial reductions in implementation costs, gate counts, and circuit depth in the compiled circuits. Real-system experiments on IonQ's device affirm its effectiveness, notably enhancing simulation accuracy.},
+booktitle = {Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 3},
+pages = {382–397},
+numpages = {16},
+keywords = {quantum computing, fermion-to-qubit encoding, formal methods, boolean satisfiability},
+location = {La Jolla, CA, USA},
+series = {ASPLOS '24}
+}
+```
